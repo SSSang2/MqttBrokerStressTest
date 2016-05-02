@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -15,16 +16,19 @@ import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
-public class PahoDemo implements MqttCallback{
+public class PahoDemo implements MqttCallback, Runnable{
 	static String clientID     = "JavaSample";
 	int num=1;
+	int offset =0;
 	int LOOP = 1000;
+    long startTime;
+    long diffTime;
+    int recevedNode = 0;
 	ArrayList<Integer> check;
 	BufferedWriter writer ;
-	
-	
-	public static void main(String[] args) {
-		new PahoDemo().init();
+	PahoDemo(int num){
+		offset = num;
+		init();
 	}
 	public void init(){
 		//AssignBroker tmp = new AssignBroker("163.180.117.97", 1883);
@@ -35,6 +39,7 @@ public class PahoDemo implements MqttCallback{
         String content      = "Message from MqttPublishSample";
         int qos             = 2;
         String broker		= "tcp://10.180.117.97:10000";// + slave;
+
         slave = "tcp://" + slave;
         check = new ArrayList<Integer>();
         MemoryPersistence persistence = new MemoryPersistence();
@@ -46,7 +51,7 @@ public class PahoDemo implements MqttCallback{
         try {
         	writer = new BufferedWriter(new FileWriter("test.txt"));
         	MqttClient sampleClient = null;
-        	for(int i=1; i<=LOOP; i++){
+        	for(int i = offset; i<=offset+LOOP; i++){
         		String clientId = clientID + i;
         		sampleClient = new MqttClient(broker, clientId, persistence);
 	            MqttConnectOptions connOpts = new MqttConnectOptions();
@@ -68,17 +73,26 @@ public class PahoDemo implements MqttCallback{
         	}
             while(true)
             {
-            	for(int i=0; i<check.size(); i ++){
-                	System.out.print(check.get(i) + " ");
-                	writer.write(check.get(i) + " ");
-                	Date dt = new Date();
-            		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd, hh:mm:ss a"); 
-            		writer.write(sdf.format(dt).toString());
-            	}
+            	//for(int i=0; i<check.size(); i ++){
+                	//System.out.print(check.get(i) + " ");
+                	//writer.write(check.get(i) + " ");
+                	//Date dt = new Date();
+            		//SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd, hh:mm:ss a"); 
+            		//writer.write(sdf.format(dt).toString());
+            	//}
             	String msg = "Test msg";
             	MqttMessage message1 = new MqttMessage(msg.getBytes());
                 message1.setQos(0);
+                
+                System.out.println("Start Time : " + startTime + ",  Diff time : " + diffTime + ",	# of Node" + recevedNode);
+                recevedNode = 0;
+                startTime = 0;
+                diffTime = 0;
+                
                 sampleClient.publish(SUB_TOPIC, message1);
+                Calendar cal=Calendar.getInstance();
+            	Date startDate=cal.getTime();
+            	startTime=startDate.getTime();
                 Thread.sleep(5000);
                 
             }
@@ -112,11 +126,24 @@ public class PahoDemo implements MqttCallback{
 	synchronized public void messageArrived(String arg0, MqttMessage arg1) throws Exception {
 		Date dt = new Date();
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd, hh:mm:ss a"); 
-		System.out.println("Msg from Broker : " + clientID + " , " + arg0 + " , " +  arg1 + ",  " + sdf.format(dt).toString() + " , ");
+		//System.out.println("Msg from Broker : " + clientID + " , " + arg0 + " , " +  arg1 + ",  " + sdf.format(dt).toString() + " , ");
 		check.set(num-1, check.get(num-1)+1);
 		num++;
 		if(num==LOOP+1)
 			num = 1;
+		
+		Calendar cal=Calendar.getInstance();
+		Date endDate=cal.getTime();
+		long endTime=endDate.getTime();
+		recevedNode++;
+		if( endTime - startTime > diffTime)
+			diffTime = endTime-startTime;
+		
+		
+	}
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
 		
 	}
 }
