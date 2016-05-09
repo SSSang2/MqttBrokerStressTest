@@ -20,95 +20,85 @@ public class PahoDemo implements MqttCallback, Runnable{
 	static String clientID     = "JavaSample";
 	int num=1;
 	int offset =0;
-	int LOOP = 1000;
+	int LOOP = 10;
     long startTime;
     long diffTime;
+    long firstTime;
+    long avgTime;
     int recevedNode = 0;
+    String SUB_TOPIC = "client";
+    MqttClient sampleClient = null;
+    MqttClient publishClient = null;
+    ArrayList<MqttClient> clientList = null;
 	ArrayList<Integer> check;
 	BufferedWriter writer ;
+	String slave = null;//tmp.getSlaveAddr();
+	String topic        = "MQTTex";
+    String content      = "Message from MqttPublishSample";
+    int qos             = 2;
+    String broker		= "tcp://10.180.117.97:10000";// + slave;
+    //String broker		= "tcp://163.180.117.231:1883";// + slave;
+    
+    
 	PahoDemo(int num){
 		offset = num;
 		init();
+		run();
 	}
+	
+	
 	public void init(){
 		//AssignBroker tmp = new AssignBroker("163.180.117.97", 1883);
+		clientList = new ArrayList<MqttClient>();
 		
-		String slave = null;//tmp.getSlaveAddr();
-		String SUB_TOPIC 	= "client";
-		String topic        = "MQTTex";
-        String content      = "Message from MqttPublishSample";
-        int qos             = 2;
-        String broker		= "tcp://10.180.117.97:10000";// + slave;
 
         slave = "tcp://" + slave;
         check = new ArrayList<Integer>();
-        MemoryPersistence persistence = new MemoryPersistence();
+        MemoryPersistence persistence;
         slave = slave.substring(0, slave.length()-1);
         
 		System.out.println("Broker Addr : " + broker + ", " + broker.length());
 		System.out.println("Slave Addr : " + slave + ", " + slave.length());
-		
-        try {
+		try {
+       
         	writer = new BufferedWriter(new FileWriter("test.txt"));
-        	MqttClient sampleClient = null;
-        	for(int i = offset; i<=offset+LOOP; i++){
+        	sampleClient = null;
+        	persistence = new MemoryPersistence();
+			publishClient = new MqttClient(broker, "pubClient", persistence);
+			MqttConnectOptions connOpts = new MqttConnectOptions();
+            connOpts.setCleanSession(true);
+            publishClient.connect(connOpts);
+            publishClient.setCallback(this);
+            
+			
+			
+        	for(int i = offset; i<offset+LOOP; i++){
         		String clientId = clientID + i;
-        		sampleClient = new MqttClient(broker, clientId, persistence);
-	            MqttConnectOptions connOpts = new MqttConnectOptions();
+        		persistence = new MemoryPersistence();
+				sampleClient = new MqttClient(broker, clientId, persistence);
+				clientList.add(sampleClient);
+	            
+				connOpts = new MqttConnectOptions();
 	            connOpts.setCleanSession(true);
 	            System.out.println("Connecting to broker: "+broker);
 	            sampleClient.connect(connOpts);
 	            sampleClient.setCallback(this);
 	            sampleClient.subscribe(SUB_TOPIC);
 	            System.out.println("Connected");
-	            System.out.println("Publishing message: "+content);
-	            MqttMessage message = new MqttMessage(content.getBytes());
-	            message.setQos(qos);
-	            sampleClient.publish(topic, message);
-	            System.out.println("Message published");
+	            //System.out.println("Publishing message: "+content);
+	            //MqttMessage message = new MqttMessage(content.getBytes());
+	            //message.setQos(qos);
+	            //sampleClient.publish(topic, message);
+	            //System.out.println("Message published");
 	            check.add(0);
 	            //sampleClient.disconnect();
 	            //System.out.println("Disconnected");
 	            //System.exit(0);
         	}
-            while(true)
-            {
-            	//for(int i=0; i<check.size(); i ++){
-                	//System.out.print(check.get(i) + " ");
-                	//writer.write(check.get(i) + " ");
-                	//Date dt = new Date();
-            		//SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd, hh:mm:ss a"); 
-            		//writer.write(sdf.format(dt).toString());
-            	//}
-            	String msg = "Test msg";
-            	MqttMessage message1 = new MqttMessage(msg.getBytes());
-                message1.setQos(0);
-                
-                System.out.println("Start Time : " + startTime + ",  Diff time : " + diffTime + ",	# of Node" + recevedNode);
-                recevedNode = 0;
-                startTime = 0;
-                diffTime = 0;
-                
-                sampleClient.publish(SUB_TOPIC, message1);
-                Calendar cal=Calendar.getInstance();
-            	Date startDate=cal.getTime();
-            	startTime=startDate.getTime();
-                Thread.sleep(5000);
-                
-            }
-        } catch(MqttException me) {
-            System.out.println("reason "+me.getReasonCode());
-            System.out.println("msg "+me.getMessage());
-            System.out.println("loc "+me.getLocalizedMessage());
-            System.out.println("cause "+me.getCause());
-            System.out.println("excep "+me);
-            me.printStackTrace();
-        } catch (InterruptedException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+			} catch (MqttException | IOException e) {
+				System.out.println("Init Error");
+				e.printStackTrace();
+			}
 	}
 	@Override
 	public void connectionLost(Throwable arg0) {
@@ -127,23 +117,83 @@ public class PahoDemo implements MqttCallback, Runnable{
 		Date dt = new Date();
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd, hh:mm:ss a"); 
 		//System.out.println("Msg from Broker : " + clientID + " , " + arg0 + " , " +  arg1 + ",  " + sdf.format(dt).toString() + " , ");
-		check.set(num-1, check.get(num-1)+1);
-		num++;
-		if(num==LOOP+1)
+		//check.set(num-1, check.get(num-1)+1);
+		if(num == LOOP+1){
 			num = 1;
+		}
 		
 		Calendar cal=Calendar.getInstance();
 		Date endDate=cal.getTime();
 		long endTime=endDate.getTime();
 		recevedNode++;
-		if( endTime - startTime > diffTime)
-			diffTime = endTime-startTime;
+		diffTime = endTime-startTime;
+		//System.out.println("NUM : " + num + ",	Time : " + diffTime + ",	Start : " + startTime + ",	End : " + endTime);
 		
 		
+//		if( endTime - startTime > diffTime)
+//			diffTime = endTime-startTime;
+//		if(num==1)
+//			firstTime = diffTime;
+//		
+//		avgTime = avgTime + endTime - startTime ;
+//		if(num == LOOP)
+//			avgTime = avgTime / LOOP;
+		num++;
 	}
 	@Override
 	public void run() {
-		// TODO Auto-generated method stub
-		
+		try{
+		while(true)
+        {
+			
+        	//for(int i=0; i<check.size(); i ++){
+            	//System.out.print(check.get(i) + " ");
+            	//writer.write(check.get(i) + " ");
+            	//Date dt = new Date();
+        		//SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd, hh:mm:ss a"); 
+        		
+        	//}
+        	String msg = "Test msg";
+        	MqttMessage message1 = new MqttMessage(msg.getBytes());
+            message1.setQos(0);
+            
+            //System.out.println( "# of Node" + recevedNode + ",	First Time : " + firstTime + ",  Last time : " + diffTime + ",	Avg Time : "+ avgTime);
+            System.out.println(diffTime);
+            try {
+				writer.write((int) diffTime);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+            recevedNode = 0;
+            startTime = 0;
+            diffTime = 0;
+            firstTime =0;
+            avgTime =0;
+            
+            //System.out.println("#Client ID : " + publishClient.getClientId());
+            //System.out.println("Is Connected : " + publishClient.isConnected());
+            Calendar cal=Calendar.getInstance();
+        	Date startDate=cal.getTime();
+        	startTime=startDate.getTime();
+        	publishClient.publish(SUB_TOPIC, message1);
+        	
+            Thread.sleep(5000);
+		}
+		        
+		    }catch(MqttException me) {
+		        System.out.println("reason "+me.getReasonCode());
+		        System.out.println("msg "+me.getMessage());
+		        System.out.println("loc "+me.getLocalizedMessage());
+		        System.out.println("cause "+me.getCause());
+		        System.out.println("excep "+me);
+		        me.printStackTrace();
+		        
+		    } catch (InterruptedException e) {
+				e.printStackTrace();
+			}	
+        
 	}
+		
 }
+
